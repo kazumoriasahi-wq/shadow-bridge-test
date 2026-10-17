@@ -1,28 +1,27 @@
 (()=>{'use strict';const $=id=>document.getElementById(id),C=$('world'),ctx=C.getContext('2d'),E=ShadowBridge,M=ShadowMusic.create(),reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-let index=0,cleared=[],sun={x:90,y:50},level,board,started=false,walking=false,walkTime=0,path=[],activePointer=null,paused=false,time=0,last=0,raf=null;const layout={x:24,y:214,sx:38,sy:31,w:34,h:27};
-try{const d=JSON.parse(localStorage.getItem('shadow_bridge_v1')||'null');if(d&&d.schema===1&&Array.isArray(d.cleared)&&d.cleared.every(n=>Number.isInteger(n)&&n>=0&&n<12)){cleared=[...new Set(d.cleared)];index=Number.isInteger(d.index)&&d.index>=0&&d.index<12?d.index:0;M.set(d.audio!==false);}}catch{}
-function save(){try{localStorage.setItem('shadow_bridge_v1',JSON.stringify({schema:1,index,cleared,audio:M.enabled}));}catch{}}
+let index=0,cleared=[],sun={x:90,y:50},level,board,started=false,walking=false,walkTime=0,path=[],activePointer=null,paused=false,time=0,last=0,raf=null;let ready=false;const H=ShadowHost.create(globalThis.ytgame);const layout={x:24,y:214,sx:38,sy:31,w:34,h:27};
+function save(){if(ready)H.update({schema:1,index,cleared,audio:H.hosted?H.data.audio:M.enabled,sun:{...sun}});}
 function msg(text){if($('message').textContent!==text)$('message').textContent=text;}
-function controls(){const locked=walking||!started||paused||!$('clear').hidden;for(const id of ['sun','direction','height','hint','retry'])$(id).disabled=locked;$('prev').disabled=locked||index===0;$('walk').disabled=locked||!board.connected;$('walk').classList.toggle('ready',board.connected&&!locked);$('walk').innerHTML=board.connected?'橋がつながった！ わたる <b>→</b>':'影をつないで、わたろう <b>→</b>';}
+function controls(){const locked=walking||!started||!ready||paused||!$('clear').hidden;for(const id of ['sun','direction','height','hint','retry'])$(id).disabled=locked;$('prev').disabled=locked||index===0;$('walk').disabled=locked||!board.connected;$('walk').classList.toggle('ready',board.connected&&!locked);$('walk').innerHTML=board.connected?'橋がつながった！ わたる <b>→</b>':'影をつないで、わたろう <b>→</b>';}
 function update(){const p=E.fromSun(sun.x,sun.y);board=E.board(level,p.slope,p.reach);$('sun').style.left=sun.x/390*100+'%';$('sun').style.top=sun.y/470*100+'%';$('direction').value=sun.x;$('height').value=sun.y;controls();if(started&&!walking&&!paused){msg(board.connected?'道ができました。光を向こう岸へ。':index===0?'太陽を下げると、影が伸びます。':'太陽を左右・上下に動かして、影をつなごう。');}}
-function load(n){index=n;level=E.level(index);sun={x:index===0?195:index%2?305:85,y:45};walking=false;walkTime=0;path=[];$('clear').hidden=true;$('chapter').textContent='CHAPTER '+String(index+1).padStart(2,'0');$('completed').textContent=cleared.length+' / 12 CLEAR';update();save();}
-function beginMusic(){if(started&&!paused&&$('dialog').open===false)void M.start();}
-$('start').onclick=()=>{started=true;$('welcome').hidden=true;update();beginMusic();};
+function load(n,persist=true){index=n;level=E.level(index);sun={x:index===0?195:index%2?305:85,y:45};walking=false;walkTime=0;path=[];$('clear').hidden=true;$('chapter').textContent='CHAPTER '+String(index+1).padStart(2,'0');$('completed').textContent=cleared.length+' / 12 CLEAR';update();if(persist)save();}
+function beginMusic(){if(ready&&started&&!paused&&!H.paused&&$('dialog').open===false)void M.start();}
+$('start').onclick=()=>{if(!ready||H.paused)return;started=true;$('welcome').hidden=true;update();beginMusic();};
 function setSun(x,y){if(walking||!started||paused||!$('clear').hidden)return;sun={x:Math.max(35,Math.min(355,x)),y:Math.max(35,Math.min(145,y))};update();beginMusic();}
 $('sun').addEventListener('pointerdown',e=>{if(e.button!==0||e.isPrimary===false||!started||walking||paused)return;activePointer=e.pointerId;$('sun').setPointerCapture(e.pointerId);e.preventDefault();beginMusic();});
 $('sun').addEventListener('pointermove',e=>{if(activePointer!==e.pointerId)return;const r=C.getBoundingClientRect();setSun((e.clientX-r.left)/r.width*390,(e.clientY-r.top)/r.height*470);e.preventDefault();});
 function cancel(){if(activePointer!==null){const id=activePointer;activePointer=null;try{$('sun').releasePointerCapture(id);}catch{}}}
-for(const event of ['pointerup','pointercancel','lostpointercapture'])$('sun').addEventListener(event,e=>{if(e.pointerId===activePointer)cancel();});
+for(const event of ['pointerup','pointercancel','lostpointercapture'])$('sun').addEventListener(event,e=>{if(e.pointerId===activePointer){cancel();save();}});
 $('sun').addEventListener('keydown',e=>{const moves={ArrowLeft:[-5,0],ArrowRight:[5,0],ArrowUp:[0,-5],ArrowDown:[0,5]};if(moves[e.key]){e.preventDefault();setSun(sun.x+moves[e.key][0],sun.y+moves[e.key][1]);}});
 for(const [id,axis]of [['direction','x'],['height','y']])$(id).oninput=e=>setSun(axis==='x'?Number(e.target.value):sun.x,axis==='y'?Number(e.target.value):sun.y);
 $('walk').onclick=()=>{if(!board.connected||walking||paused||!started)return;cancel();walking=true;walkTime=0;path=board.path;controls();msg('小さな光が、影の橋をわたっています。');M.effect();beginMusic();};
-$('next').onclick=()=>{load((index+1)%12);beginMusic();};$('prev').onclick=()=>load(Math.max(0,index-1));$('retry').onclick=()=>load(index);
+$('next').onclick=()=>{if(H.paused||!ready)return;load((index+1)%12);beginMusic();};$('prev').onclick=()=>load(Math.max(0,index-1));$('retry').onclick=()=>load(index);
 function modal(title,text){cancel();paused=true;M.stop();if(raf!==null)cancelAnimationFrame(raf);raf=null;$('dialogTitle').textContent=title;$('dialogText').textContent=text;$('dialog').showModal();controls();}
 $('hint').onclick=()=>modal('夕暮れのヒント',index===0?'まずは右側の「影のながさ」を右へ。太陽が低くなると、塔の影が伸びます。影がゴールへ届いたら「わたる」を押しましょう。':'塔の根元は、いつでも足場になります。\n影が次の塔の根元に重なるように、まず「影のむき」を調整。次に太陽を下げ、影を十分に伸ばしましょう。\n長さを整えてから、向きを少しずつ動かすのもコツです。');
 $('help').onclick=()=>modal('太陽で、道をつくる。','空の太陽を指で左右・上下へ動かします。\n左右：影の向きが変わる。\n下へ：影が長くなる。上へ：短くなる。\n下の2本のスライダーでも調整できます。\n塔の足場と影のタイルをつなぎ、左の光から右の灯台まで道ができたら「わたる」。時間制限も失敗のペナルティもありません。\n音楽は「はじめる」後に流れます。音符でBGMと効果音を切替できます。');
-$('dialogOK').onclick=()=>$('dialog').close();$('dialog').onclose=()=>{paused=false;controls();beginMusic();resumeLoop();};
+$('dialogOK').onclick=()=>{if(!H.paused)$('dialog').close();};$('dialog').onclose=()=>{paused=H.paused;controls();beginMusic();resumeLoop();};
 $('audio').onclick=()=>{M.set(!M.enabled);$('audio').textContent=M.enabled?'♪':'♩';$('audio').setAttribute('aria-pressed',String(M.enabled));save();beginMusic();};
-document.addEventListener('visibilitychange',()=>{if(document.hidden){cancel();paused=true;M.stop();if(raf!==null)cancelAnimationFrame(raf);raf=null;}else if(!$('dialog').open){paused=false;controls();resumeLoop();}});window.addEventListener('blur',()=>{cancel();M.stop();});
+if(!H.hosted){document.addEventListener('visibilitychange',()=>{if(document.hidden){cancel();paused=true;M.stop();if(raf!==null)cancelAnimationFrame(raf);raf=null;}else if(!$('dialog').open){paused=false;controls();resumeLoop();}});window.addEventListener('blur',()=>{cancel();M.stop();});}
 function clearLevel(){walking=false;if(!cleared.includes(index))cleared.push(index);save();$('completed').textContent=cleared.length+' / 12 CLEAR';$('clearText').textContent=index===11?'12の夕暮れをめぐりました。何度でも、影の道をつくれます。':'CHAPTER '+String(index+1).padStart(2,'0')+' CLEAR';$('next').textContent=index===11?'最初の夕暮れへ ↗':'次の夕暮れへ ↗';$('clear').hidden=false;M.effect(true);controls();msg('光が向こう岸にたどり着きました。');}
 function cell(x,y){return{x:layout.x+x*layout.sx+layout.w/2,y:layout.y+y*layout.sy+layout.h/2};}
 function orb(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
@@ -39,5 +38,17 @@ ctx.textAlign='center';ctx.font='8px system-ui';ctx.fillStyle='#b9a9bf';ctx.fill
 }
 function loop(now){raf=null;const dt=Math.min(.05,(now-last)/1000||0);last=now;if(!paused){time+=dt;if(walking){walkTime+=dt;if(walkTime*3.5>=path.length-1)clearLevel();}draw();raf=requestAnimationFrame(loop);}}
 function resumeLoop(){if(raf===null&&!paused){last=performance.now();raf=requestAnimationFrame(loop);}}
-load(index);$('audio').textContent=M.enabled?'♪':'♩';$('audio').setAttribute('aria-pressed',String(M.enabled));draw();resumeLoop();
+
+function audioUI(){$('audio').hidden=H.hosted;$('audio').textContent=M.enabled?'♪':'♩';$('audio').setAttribute('aria-pressed',String(M.enabled));}
+for(const id of ['direction','height'])$(id).addEventListener('change',()=>save());
+H.on(type=>{if(type==='save-error'){msg('保存に失敗しました。次の操作や再開時に再試行します。');return;}
+ if(type==='audio'){if(H.hosted)M.set(H.audio);return;}
+ paused=H.paused||$('dialog').open;document.querySelector('main').inert=H.paused||!ready;$('dialog').inert=H.paused;
+ if(H.paused){cancel();if(ready)save();M.stop();if(raf!==null)cancelAnimationFrame(raf);raf=null;msg('YouTubeの再開を待っています。');}
+ else{controls();resumeLoop();}
+});
+async function boot(){$('retryLoad').hidden=true;try{await H.init();await H.whenActive();const d=H.data;cleared=d.cleared;load(d.index,false);if(d.sun){sun={...d.sun};update();}M.set(H.hosted?H.audio:d.audio);ready=true;audioUI();controls();$('startup').hidden=true;document.querySelector('main').inert=false;H.ready();resumeLoop();}
+ catch{await H.whenActive();$('startupText').textContent='保存データを読み込めませんでした。上書きせず停止しています。通信を確認して再試行してください。';$('retryLoad').hidden=false;}}
+$('retryLoad').onclick=()=>{if(!H.paused)void boot();};
+load(0,false);draw();H.firstFrame();void boot();
 })();
