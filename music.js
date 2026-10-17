@@ -1,0 +1,9 @@
+/* Original generative pentatonic music. No external recordings or assets. */
+(function(root){'use strict';function create(){let ctx=null,timer=null,step=0,enabled=true,running=false,starting=false,generation=0;const melody=[72,76,79,83,79,76,74,71,69,74,76,79,76,74,71,67],chords=[[48,55,60],[45,52,57],[41,48,53],[43,50,55]];
+function note(midi,time,duration,volume,type='sine'){if(!ctx||ctx.state!=='running')return;const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=440*Math.pow(2,(midi-69)/12);g.gain.setValueAtTime(.0001,time);g.gain.exponentialRampToValueAtTime(volume,time+.06);g.gain.exponentialRampToValueAtTime(.0001,time+duration);o.connect(g).connect(ctx.destination);o.start(time);o.stop(time+duration+.05);}
+function phrase(){if(!running||!enabled||!ctx||ctx.state!=='running')return;const time=ctx.currentTime+.025;note(melody[step%16],time,1.8,.026);if(step%4===0)for(const n of chords[Math.floor(step/4)%4])note(n,time,3.8,.012);step++;}
+async function start(){if(!enabled||running||starting)return;const token=++generation;starting=true;try{if(!ctx||ctx.state==='closed')ctx=new(window.AudioContext||window.webkitAudioContext)();const local=ctx;await local.resume();if(token!==generation||!enabled||ctx!==local||local.state!=='running')return;running=true;phrase();timer=setInterval(phrase,720);}catch{}finally{if(token===generation)starting=false;}}
+function stop(){generation++;starting=false;running=false;if(timer!==null)clearInterval(timer);timer=null;if(ctx){const old=ctx;ctx=null;void old.close().catch(()=>{});}}
+function effect(clear=false){if(!enabled||!ctx||ctx.state!=='running')return;const now=ctx.currentTime;for(let i=0;i<(clear?4:1);i++)note((clear?[72,76,79,84]:[76])[i],now+i*.12,.45,.045);}
+return{start,stop,effect,set(value){enabled=!!value;if(!enabled)stop();},get enabled(){return enabled;}};}
+root.ShadowMusic={create};})(globalThis);

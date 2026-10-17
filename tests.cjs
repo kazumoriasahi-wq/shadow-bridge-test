@@ -1,0 +1,6 @@
+const assert=require('node:assert/strict'),E=require('./engine.js');
+for(let i=0;i<E.count;i++){const l=E.level(i),b=E.board(l,l.solution.slope,l.solution.reach);assert(b.connected,'Unsolvable chapter '+(i+1));assert.deepEqual(b.path[0],l.start);assert.deepEqual(b.path.at(-1),l.goal);for(let j=1;j<b.path.length;j++){assert.equal(Math.abs(b.path[j][0]-b.path[j-1][0])+Math.abs(b.path[j][1]-b.path[j-1][1]),1);assert(b.safe.has(E.key(...b.path[j])));}}
+console.log('PASS all 12 chapters have a contiguous, safe solution');
+assert.equal(E.board(E.level(0),0,1.2).connected,false);assert.equal(E.board(E.level(0),0,4.6).connected,true);console.log('PASS lowering sun extends shadows to connect the bridge');
+assert.equal(E.board(E.level(2),.8,4.6).connected,false);assert.equal(E.board(E.level(2),-1/3,4.6).connected,true);console.log('PASS direction changes require the right alignment');
+for(const x of [-999,35,195,355,999])for(const y of [-99,35,145,999]){const p=E.fromSun(x,y);assert(p.slope>=-.8&&p.slope<=.8);assert(p.reach>=1.2&&p.reach<=4.6);const b=E.board(E.level(0),p.slope,p.reach);for(const k of b.safe){const[a,c]=k.split(',').map(Number);assert(a>=0&&a<9&&c>=0&&c<7);}}console.log('PASS drag bounds and board bounds');
